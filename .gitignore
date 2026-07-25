@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.local
+.vite/
+
+# local-only files, not for the public repo
+dichoptic-trainer-spec.md
+.claude/

@@ -1,0 +1,4 @@
+# Alternative deploy target. With Netlify CLI: netlify deploy --build --prod
+[build]
+  command = "npm run build"
+  publish = "dist"
