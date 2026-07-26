@@ -158,13 +158,21 @@ export class UI {
 
       const btnMeshes = [];
       const n = buttonDefs.length;
+      const perRow = n > 3 ? 3 : n; // wrap wide menus into rows of 3
       buttonDefs.forEach((def, i) => {
         const w = 420;
         const btn = makeTextMesh(def.label, w, 130, {
           bg: def.color || '#3d6ef7',
           font: 40,
         });
-        btn.position.set((i - (n - 1) / 2) * ((w / PX_PER_M) + 0.06), -0.36, 0.01);
+        const rowIdx = Math.floor(i / perRow);
+        const col = i % perRow;
+        const rowCount = Math.min(perRow, n - rowIdx * perRow);
+        btn.position.set(
+          (col - (rowCount - 1) / 2) * ((w / PX_PER_M) + 0.06),
+          -0.36 - rowIdx * 0.16,
+          0.01,
+        );
         btn.userData.label = def.label;
         btn.userData.disabled = !!def.disabled;
         if (def.disabled) btn.userData.redraw(def.label, { bg: '#555555', fg: '#999999' });

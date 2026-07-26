@@ -62,10 +62,18 @@ export const store = {
     save(sessions);
   },
 
-  addResult(successDelta, attemptDelta) {
+  // Per-game stats always recorded; countsForStaircase=false keeps a game
+  // (e.g. ring toss) out of the daily staircase ratio.
+  addResult(game, successDelta, attemptDelta, countsForStaircase = true) {
     if (!current) return;
-    current.success += successDelta;
-    current.attempts += attemptDelta;
+    if (!current.games) current.games = {};
+    const g = (current.games[game] = current.games[game] || { success: 0, attempts: 0 });
+    g.success += successDelta;
+    g.attempts += attemptDelta;
+    if (countsForStaircase) {
+      current.success += successDelta;
+      current.attempts += attemptDelta;
+    }
     // saved by the periodic tick to avoid a write per brick
   },
 
@@ -108,10 +116,18 @@ export const store = {
         exportedAt: new Date().toISOString(),
         sessions,
         staircase: JSON.parse(localStorage.getItem('vt.staircase.v1') || 'null'),
+        program: JSON.parse(localStorage.getItem('vt.program.v1') || 'null'),
       },
       null,
       2,
     );
+  },
+
+  // Program start: wipe session history (call AFTER archiving a snapshot).
+  resetAll() {
+    sessions = [];
+    current = null;
+    save(sessions);
   },
 
   importJSON(text) {

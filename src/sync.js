@@ -64,6 +64,20 @@ async function ghGetSha(cfg, path) {
   return (await r.json()).sha;
 }
 
+// One-shot archive (e.g. before a program-start reset) to a unique path.
+export async function archiveSnapshot(tag) {
+  const cfg = getSyncConfig();
+  if (!cfg || !cfg.token || !cfg.repo) return { state: 'unconfigured' };
+  const path = `data/archive/${tag}-${Date.now()}.json`;
+  try {
+    const r = await ghPut(cfg, path, store.exportJSON(), `archive: ${tag}`);
+    if (!r.ok) throw new Error(`archive upload ${r.status}`);
+    return { state: 'ok', path };
+  } catch (e) {
+    return { state: 'error', error: String(e.message || e) };
+  }
+}
+
 let inFlight = false;
 
 // Uploads the full snapshot to data/latest-<device>.json (overwritten each

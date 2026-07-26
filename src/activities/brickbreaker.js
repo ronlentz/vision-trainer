@@ -173,7 +173,6 @@ export async function run(ctx) {
             group.remove(brick);
             bricks.splice(bricks.indexOf(brick), 1);
             broken++;
-            store.addResult(0, 0); // bricks are score, not the staircase metric
             vel.z *= -1;
             updateHud();
             break;
@@ -197,7 +196,7 @@ export async function run(ctx) {
             vel.y += dy * 2.2;
             vel.normalize().multiplyScalar(SPEED);
             hits++;
-            store.addResult(1, 1);
+            store.addResult('brick-breaker', 1, 1);
             updateHud();
             break;
           }
@@ -207,7 +206,7 @@ export async function run(ctx) {
       // miss
       if (b.z > Z_MISS) {
         misses++;
-        store.addResult(0, 1);
+        store.addResult('brick-breaker', 0, 1);
         updateHud();
         serving = 1.0;
         ball.position.set(0, 1.5, -1.0);

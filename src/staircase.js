@@ -64,6 +64,17 @@ export const staircase = {
     return setContrastLevel(value, reason, { manual: true });
   },
 
+  // Program start: wipe history, back to config.startingContrast (a
+  // ?set-contrast param afterwards can apply a measured balance point).
+  reset() {
+    state = {
+      contrast: config.startingContrast,
+      evaluatedDays: [],
+      log: [{ ts: Date.now(), from: null, to: config.startingContrast, reason: 'program-start', inputs: {} }],
+    };
+    save();
+  },
+
   // Called at app start: evaluate the most recent completed play day that has
   // not been evaluated yet (a day is complete once the local date has moved
   // on). One adjustment per day, driven by that day's full totals.

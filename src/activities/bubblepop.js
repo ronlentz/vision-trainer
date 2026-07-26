@@ -105,7 +105,7 @@ export async function run(ctx) {
   }
   function popBubble(b) {
     popped++;
-    store.addResult(1, 1);
+    store.addResult('bubble-pop', 1, 1);
     removeBubble(b);
     updateHud();
   }
@@ -143,7 +143,7 @@ export async function run(ctx) {
         b.position.x += Math.sin(b.userData.wobblePhase) * 0.02 * dt;
         if (b.position.y > Y_ESCAPE) {
           escaped++;
-          store.addResult(0, 1);
+          store.addResult('bubble-pop', 0, 1);
           removeBubble(b);
           updateHud();
         }

@@ -11,11 +11,31 @@ import { weakEyeName } from './eyes.js';
 import * as calibration from './activities/calibration.js';
 import * as brickbreaker from './activities/brickbreaker.js';
 import * as bubblepop from './activities/bubblepop.js';
-import { syncNow, syncStatus, getSyncConfig } from './sync.js';
+import * as ringtoss from './activities/ringtoss.js';
+import * as vergence from './activities/vergence.js';
+import { syncNow, syncStatus, getSyncConfig, archiveSnapshot } from './sync.js';
+import { localDay } from './store.js';
 
 const hudEl = document.getElementById('hud');
 
-export function start() {
+export async function start() {
+  // Supervised admin actions via URL params, in order:
+  // 1. ?program-start=fresh — archive everything to the sync repo, then wipe
+  //    local history and reset the staircase: official day zero.
+  // 2. ?set-contrast=0.2 — manual contrast set (e.g. doctor's balance point).
+  const qp = new URLSearchParams(location.search);
+  if (qp.get('program-start') === 'fresh') {
+    const arch = await archiveSnapshot('preprogram');
+    if (getSyncConfig() && arch.state !== 'ok') {
+      alert('Program start ABORTED: could not archive old data (' + (arch.error || arch.state) + '). Nothing was deleted.');
+    } else {
+      store.resetAll();
+      staircase.reset();
+      localStorage.setItem('vt.program.v1', JSON.stringify({ startDay: localDay() }));
+      console.log('[vt] program started fresh; archive:', arch.path || 'no sync configured');
+    }
+  }
+
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(config.backgroundGray);
 
@@ -140,6 +160,8 @@ export function start() {
           { id: 'calibration', label: 'Calibration check' },
           { id: 'bubble', label: 'Bubble pop' },
           { id: 'brick', label: 'Brick breaker' },
+          { id: 'ring', label: 'Ring toss' },
+          { id: 'vergence', label: 'Vergence trainer' },
           { id: 'end', label: 'End session', color: '#b03030' },
         ],
       );
@@ -154,6 +176,12 @@ export function start() {
         await brickbreaker.run(ctx);
         played.any = true;
         played.brick = true;
+      } else if (choice === 'ring') {
+        await ringtoss.run(ctx);
+        played.any = true;
+      } else if (choice === 'vergence') {
+        await vergence.run(ctx);
+        played.any = true;
       }
     }
     if (played.any) await endOfSessionCheckin(played);

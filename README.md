@@ -15,6 +15,15 @@ Current features:
   point-and-trigger to pop; accuracy = popped / (popped + escaped).
 - **Brick breaker**: paddles (one per hand) → strong eye
   (contrast-attenuated), ball and bricks → weak eye (full contrast).
+- **Ring toss**: target ring → weak eye, thrown ball → both eyes; depth
+  judgment through fusion. Scored per-game, excluded from the staircase.
+- **Vergence trainer**: fused target approaches/recedes; trigger marks the
+  split (break) and re-fusion (recovery) distances, 3 rounds, logged.
+- **Doctor report**: 2D-page button producing a one-page HTML summary
+  (contrast trend headline) plus a CSV that opens in Excel.
+- **Program start**: `?program-start=fresh` archives all data to the sync
+  repo then resets history and staircase — official day zero. Combine with
+  `?set-contrast=` to apply a measured balance point.
 - **Adaptive staircase** (PEDIG protocol values): strong-eye contrast starts
   0.20, adjusts ±0.10 once per completed day (≥30 min play required;
   success ratio ≥0.75 raises, below lowers; floor 0.10, ceiling 1.0).
