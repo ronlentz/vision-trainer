@@ -53,6 +53,14 @@ export function start() {
     },
   };
 
+  // Supervised one-time contrast set via URL (?set-contrast=0.2), for
+  // remote corrections. Logged in the staircase history like any change.
+  const scParam = parseFloat(new URLSearchParams(location.search).get('set-contrast'));
+  if (!Number.isNaN(scParam)) {
+    const to = staircase.setManual(scParam, 'manual-set-url');
+    console.log(`[vt] contrast manually set to ${to}`);
+  }
+
   // Desktop 2D info
   function refreshHudEl() {
     const st = syncStatus();

@@ -58,6 +58,12 @@ export const staircase = {
     return setContrastLevel(state.contrast - STEP, reason, inputs);
   },
 
+  // Supervised correction (e.g. undoing button-test back-offs, or applying
+  // an optometrist-measured balance point). Always logged like any change.
+  setManual(value, reason) {
+    return setContrastLevel(value, reason, { manual: true });
+  },
+
   // Called at app start: evaluate the most recent completed play day that has
   // not been evaluated yet (a day is complete once the local date has moved
   // on). One adjustment per day, driven by that day's full totals.
