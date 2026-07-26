@@ -52,6 +52,10 @@ export const store = {
     save(sessions);
   },
 
+  currentEvents() {
+    return current ? current.events : [];
+  },
+
   addActivity(name) {
     if (!current) return;
     if (!current.activities.includes(name)) current.activities.push(name);

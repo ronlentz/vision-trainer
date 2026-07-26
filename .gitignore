@@ -5,4 +5,5 @@ dist/
 
 # local-only files, not for the public repo
 dichoptic-trainer-spec.md
+training-notes.md
 .claude/

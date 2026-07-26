@@ -66,6 +66,7 @@ export function start() {
   });
 
   async function sessionFlow() {
+    const played = { any: false, brick: false };
     endRequested = false;
     safety.paused = false;
     safety.abortActivity = false;
@@ -121,10 +122,75 @@ export function start() {
         ],
       );
       if (choice === 'end' || endRequested) break;
-      if (choice === 'calibration') await calibration.run(ctx);
-      else if (choice === 'brick') await brickbreaker.run(ctx);
+      if (choice === 'calibration') {
+        await calibration.run(ctx);
+        played.any = true;
+      } else if (choice === 'brick') {
+        await brickbreaker.run(ctx);
+        played.any = true;
+        played.brick = true;
+      }
     }
+    if (played.any) await endOfSessionCheckin(played);
     await endSession();
+  }
+
+  // End-of-session check-in: subjective symptoms, asked in-headset and
+  // logged on-device so nothing needs manual note-taking. A double-vision
+  // report backs the staircase off, same as the B/Y stop — unless a stop
+  // already lowered it this session (no double punishment).
+  async function endOfSessionCheckin(played) {
+    const dv = await ui.panel(
+      'Quick check-in — recorded for your eye doctor.\nAny double vision during play, even briefly?',
+      [
+        { id: 'none', label: 'None' },
+        { id: 'brief', label: 'Briefly' },
+        { id: 'often', label: 'A lot', color: '#b03030' },
+      ],
+    );
+    const strain = await ui.panel(
+      'Eye strain, headache, or other discomfort?',
+      [
+        { id: 'none', label: 'None' },
+        { id: 'mild', label: 'Mild' },
+        { id: 'strong', label: 'Strong', color: '#b03030' },
+      ],
+    );
+    let paddle = null;
+    if (played.brick) {
+      paddle = await ui.panel(
+        'The faint paddle (strong eye): how visible was it today?',
+        [
+          { id: 'easy', label: 'Easy to see' },
+          { id: 'hard', label: 'Hard but usable' },
+          { id: 'invisible', label: 'Nearly invisible' },
+        ],
+      );
+    }
+    store.logEvent('checkin', { doubleVision: dv, strain, paddleVisibility: paddle });
+
+    const alreadyBackedOff = store
+      .currentEvents()
+      .some((e) => e.type === 'double-vision');
+    if (dv !== 'none' && !alreadyBackedOff) {
+      const before = staircase.contrast();
+      const after = staircase.backOff('checkin-double-vision', { report: dv });
+      store.logEvent('double-vision', {
+        activity: 'checkin',
+        contrastBefore: before,
+        contrastAfter: after,
+      });
+      await ui.panel(
+        `Because you reported double vision, strong-eye contrast is lowered for next time: ${before.toFixed(2)} → ${after.toFixed(2)}.\nIf it keeps happening, tell your eye doctor.`,
+        [{ id: 'ok', label: 'OK' }],
+      );
+    }
+    if (strain === 'strong') {
+      await ui.panel(
+        'Strong discomfort is worth a shorter session tomorrow — and mention it to your eye doctor.',
+        [{ id: 'ok', label: 'OK' }],
+      );
+    }
   }
 
   async function endSession() {
