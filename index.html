@@ -26,7 +26,7 @@
     <div id="hud">Loading…</div>
     <div id="data">
       <button id="syncBtn">Sync setup</button>
-      <button id="doctorBtn">Doctor report</button>
+      <a href="./report.html"><button>Doctor report</button></a>
       <button id="exportBtn">Export data (JSON)</button>
       <label for="importFile">Import data</label>
       <input type="file" id="importFile" accept=".json,application/json" />
@@ -55,20 +55,6 @@
         const res = await syncNow('setup-test');
         alert(res.state === 'ok' ? 'Sync works! Data uploaded.' : 'Sync FAILED: ' + (res.error || res.state));
         location.reload();
-      };
-      document.getElementById('doctorBtn').onclick = async () => {
-        const { buildCSV, buildHTML } = await import('/src/report.js');
-        const data = JSON.parse(store.exportJSON());
-        const dl = (content, name, type) => {
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(new Blob([content], { type }));
-          a.download = name;
-          a.click();
-          URL.revokeObjectURL(a.href);
-        };
-        const stamp = new Date().toISOString().slice(0, 10);
-        dl(buildHTML(data), `vision-training-summary-${stamp}.html`, 'text/html');
-        dl(buildCSV(data), `vision-training-sessions-${stamp}.csv`, 'text/csv');
       };
       document.getElementById('exportBtn').onclick = () => {
         const blob = new Blob([store.exportJSON()], { type: 'application/json' });

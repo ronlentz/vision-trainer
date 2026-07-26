@@ -11,6 +11,11 @@ import mkcert from 'vite-plugin-mkcert';
 export default defineConfig(({ mode }) => ({
   base: './',
   plugins: mode === 'lan' ? [mkcert()] : [],
+  build: {
+    rollupOptions: {
+      input: ['./index.html', './report.html'],
+    },
+  },
   server: {
     host: mode === 'lan' ? '0.0.0.0' : 'localhost',
   },

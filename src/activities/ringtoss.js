@@ -12,6 +12,7 @@ import { staircase } from '../staircase.js';
 import { store } from '../store.js';
 
 const RING_R = 0.16;
+const TUBE_R = 0.02;
 const BALL_R = 0.04;
 const GRAVITY = -3.5; // gentle indoor arc; visual mechanics matter, not physics
 const SPAWN = new THREE.Vector3(0.25, 1.3, -0.5);
@@ -52,6 +53,7 @@ export async function run(ctx) {
   const history = []; // recent {pos, t} of the holding controller
   let scoredThisFlight = false;
   let respawnTimer = 0;
+  let stallTime = 0; // a ball balanced on the rim counts as a miss after 2s
 
   let throws = 0;
   let through = 0;
@@ -89,6 +91,7 @@ export async function run(ctx) {
     state = 'flying';
     holder = null;
     scoredThisFlight = false;
+    stallTime = 0;
     throws++;
     updateHud();
   }
@@ -139,17 +142,57 @@ export async function run(ctx) {
         const prevZ = ball.position.z;
         vel.y += GRAVITY * dt;
         ball.position.addScaledVector(vel, dt);
-        // ring plane crossing (ring faces the player, plane = its z)
+        // rim collision — a throw that clips the ring bounces (sometimes in)
+        if (Math.abs(ball.position.z - ring.position.z) < BALL_R + TUBE_R + 0.02) {
+          const dx = ball.position.x - ring.position.x;
+          const dy = ball.position.y - ring.position.y;
+          const rl = Math.hypot(dx, dy);
+          if (rl > 1e-4) {
+            const rimX = ring.position.x + (dx / rl) * RING_R;
+            const rimY = ring.position.y + (dy / rl) * RING_R;
+            const ox = ball.position.x - rimX;
+            const oy = ball.position.y - rimY;
+            const oz = ball.position.z - ring.position.z;
+            const d = Math.hypot(ox, oy, oz);
+            if (d > 1e-4 && d < BALL_R + TUBE_R) {
+              const nx = ox / d, ny = oy / d, nz = oz / d;
+              const push = BALL_R + TUBE_R + 0.002 - d;
+              ball.position.x += nx * push;
+              ball.position.y += ny * push;
+              ball.position.z += nz * push;
+              const dot = vel.x * nx + vel.y * ny + vel.z * nz;
+              if (dot < 0) {
+                vel.x -= 2 * dot * nx;
+                vel.y -= 2 * dot * ny;
+                vel.z -= 2 * dot * nz;
+                vel.multiplyScalar(0.45);
+              }
+            }
+          }
+        }
+        // ring plane crossing (ring faces the player, plane = its z);
+        // clean pass = center clears the opening with ball radius to spare —
+        // anything tighter hits the rim collision above and may bounce in
         if (!scoredThisFlight && prevZ > ring.position.z && ball.position.z <= ring.position.z) {
           const dx = ball.position.x - ring.position.x;
           const dy = ball.position.y - ring.position.y;
-          if (Math.hypot(dx, dy) < RING_R - BALL_R) {
+          if (Math.hypot(dx, dy) < RING_R - TUBE_R - BALL_R + 0.015) {
             scoredThisFlight = true;
             endFlight(true);
             return;
           }
         }
-        if (ball.position.y < 0.03 || ball.position.z < -3.2 || Math.abs(ball.position.x) > 2.5) {
+        if (vel.lengthSq() < 0.0225) { // < 0.15 m/s: rim-rest jitter, not flight
+          stallTime += dt;
+        } else {
+          stallTime = 0;
+        }
+        if (
+          ball.position.y < 0.03 ||
+          ball.position.z < -3.2 ||
+          Math.abs(ball.position.x) > 2.5 ||
+          stallTime > 2
+        ) {
           endFlight(false);
         }
       } else if (state === 'idle' && respawnTimer > 0) {

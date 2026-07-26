@@ -116,8 +116,12 @@ export async function run(ctx) {
   hud.dispose();
 
   if (results.length) {
-    store.logEvent('vergence', { cycles: results });
-    const fmt = (v) => (v === null ? 'none' : Math.round(v * 100) + ' cm');
+    store.logEvent('vergence', { cycles: results }); // stored in meters
+    const fmt = (v) => {
+      if (v === null) return 'never';
+      const inches = Math.round(v * 39.3701);
+      return inches >= 36 ? `${Math.floor(inches / 12)} ft ${inches % 12} in` : `${inches} in`;
+    };
     await ui.panel(
       'Vergence results (distance from face):\n' +
         results

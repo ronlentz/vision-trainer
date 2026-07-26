@@ -82,18 +82,53 @@ export async function run(ctx) {
     );
   updateHud();
 
-  // trigger → raycast against bubbles (weak layer)
-  const raycaster = new THREE.Raycaster();
-  raycaster.layers.enable(weakLayer);
+  // Aiming: bubbles are weak-eye-only, so they carry NO stereo depth cue —
+  // aiming must not require depth judgment. Generous pick radius around the
+  // ray, hover highlight on the bubble, a both-eyes reticle at the aim
+  // point, and the laser terminates on the target.
+  const PICK_RADIUS = 0.11;
   const tmpMat = new THREE.Matrix4();
+  const rayOrigin = new THREE.Vector3();
+  const rayDir = new THREE.Vector3();
+  const toBubble = new THREE.Vector3();
+  const closest = new THREE.Vector3();
+
+  function nearestOnRay(c) {
+    tmpMat.identity().extractRotation(c.matrixWorld);
+    rayOrigin.setFromMatrixPosition(c.matrixWorld);
+    rayDir.set(0, 0, -1).applyMatrix4(tmpMat);
+    let best = null;
+    let bestDist = PICK_RADIUS;
+    let bestT = 0;
+    for (const b of bubbles) {
+      toBubble.subVectors(b.position, rayOrigin);
+      const t = toBubble.dot(rayDir);
+      if (t < 0.1) continue;
+      closest.copy(rayDir).multiplyScalar(t).add(rayOrigin);
+      const dist = closest.distanceTo(b.position);
+      if (dist < bestDist) {
+        best = b;
+        bestDist = dist;
+        bestT = t;
+      }
+    }
+    return best ? { bubble: best, t: bestT } : null;
+  }
+
+  const reticles = ui.controllers.map(() => {
+    const r = new THREE.Mesh(
+      new THREE.SphereGeometry(0.016, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    );
+    r.visible = false;
+    group.add(r); // layer 0 — both eyes see the aim point
+    return r;
+  });
+
   function onSelect(e) {
     if (safety.paused || ui.busy) return;
-    const c = e.target;
-    tmpMat.identity().extractRotation(c.matrixWorld);
-    raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
-    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpMat);
-    const hit = raycaster.intersectObjects(bubbles, false)[0];
-    if (hit) popBubble(hit.object);
+    const hit = nearestOnRay(e.target);
+    if (hit) popBubble(hit.bubble);
   }
   for (const c of ui.controllers) c.addEventListener('selectstart', onSelect);
 
@@ -149,6 +184,25 @@ export async function run(ctx) {
         }
       }
 
+      // hover feedback: highlight aimed bubble, park reticle at aim point,
+      // laser stops on the target
+      for (const b of bubbles) b.scale.setScalar(1);
+      ui.controllers.forEach((c, i) => {
+        const hit = nearestOnRay(c);
+        const ray = c.getObjectByName('uiRay');
+        if (hit) {
+          hit.bubble.scale.setScalar(1.25);
+          reticles[i].visible = true;
+          reticles[i].position.copy(rayDir.set(0, 0, -1).applyMatrix4(tmpMat.identity().extractRotation(c.matrixWorld)))
+            .multiplyScalar(hit.t)
+            .add(rayOrigin.setFromMatrixPosition(c.matrixWorld));
+          if (ray) ray.scale.z = hit.t / 3;
+        } else {
+          reticles[i].visible = false;
+          if (ray) ray.scale.z = 1;
+        }
+      });
+
       for (const d of distractors) {
         d.position.addScaledVector(d.userData.drift, dt);
         if (Math.abs(d.position.x) > X) d.userData.drift.x *= -1;
@@ -160,7 +214,11 @@ export async function run(ctx) {
 
     function cleanup() {
       off();
-      for (const c of ui.controllers) c.removeEventListener('selectstart', onSelect);
+      for (const c of ui.controllers) {
+        c.removeEventListener('selectstart', onSelect);
+        const ray = c.getObjectByName('uiRay');
+        if (ray) ray.scale.z = 1;
+      }
       ui.buttons = ui.buttons.filter((x) => x !== exitHud.mesh);
       exitHud.dispose();
       hud.dispose();

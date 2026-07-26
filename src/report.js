@@ -126,10 +126,11 @@ ${
           (v) =>
             `<p>${v.day}: ` +
             v.cycles
-              .map(
-                (c, i) =>
-                  `R${i + 1} break ${c.break === null ? 'none' : Math.round(c.break * 100) + 'cm'} / recovery ${c.recovery === null ? 'none' : Math.round(c.recovery * 100) + 'cm'}`,
-              )
+              .map((c, i) => {
+                const both = (m) =>
+                  m === null ? 'none' : `${Math.round(m * 100)} cm (${Math.round(m * 39.3701)} in)`;
+                return `R${i + 1} break ${both(c.break)} / recovery ${both(c.recovery)}`;
+              })
               .join(' · ') +
             '</p>',
         )

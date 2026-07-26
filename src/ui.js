@@ -77,6 +77,7 @@ export class UI {
         new THREE.Vector3(0, 0, -3),
       ]);
       const ray = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 }));
+      ray.name = 'uiRay'; // activities may shorten it to the aimed target
       c.add(ray);
       const tip = new THREE.Mesh(
         new THREE.SphereGeometry(0.012, 12, 12),
