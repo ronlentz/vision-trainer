@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dichoptic Trainer — Per-Eye Smoke Test</title>
+    <title>Vision Trainer</title>
     <style>
       body { margin: 0; background: #808080; font-family: system-ui, sans-serif; }
       #hud {
@@ -12,10 +12,46 @@
         padding: 10px 14px; font-size: 14px; line-height: 1.5;
         pointer-events: none; white-space: pre-wrap;
       }
+      #data {
+        position: fixed; top: 8px; right: 10px; display: flex; gap: 8px;
+      }
+      #data button, #data label {
+        font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 0;
+        background: #3d6ef7; color: #fff; cursor: pointer;
+      }
+      #importFile { display: none; }
     </style>
   </head>
   <body>
     <div id="hud">Loading…</div>
+    <div id="data">
+      <button id="exportBtn">Export data (JSON)</button>
+      <label for="importFile">Import data</label>
+      <input type="file" id="importFile" accept=".json,application/json" />
+    </div>
     <script type="module" src="/src/main.js"></script>
+    <script type="module">
+      // 2D-page data export/import (all state lives in localStorage)
+      const { store } = await import('/src/store.js');
+      document.getElementById('exportBtn').onclick = () => {
+        const blob = new Blob([store.exportJSON()], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `vision-trainer-data-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+      document.getElementById('importFile').onchange = async (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        try {
+          store.importJSON(await f.text());
+          alert('Import OK — reloading.');
+          location.reload();
+        } catch (err) {
+          alert('Import failed: ' + err.message);
+        }
+      };
+    </script>
   </body>
 </html>

@@ -1,15 +1,24 @@
-# Vision Trainer — WebXR Per-Eye Rendering Smoke Test
+# Vision Trainer (WebXR / Meta Quest)
 
-A minimal WebXR (Meta Quest) test that verifies per-eye rendering with
-Three.js layers:
+Dichoptic (per-eye) vision training app. Plain JavaScript + Three.js + WebXR.
 
-- Red cube → layer 1 → LEFT eye only
-- Blue cube → layer 2 → RIGHT eye only
-- Grid + white sphere → layer 0 → both eyes
+Current features:
 
-In the headset: enter VR and close one eye at a time — exactly one cube
-should disappear. An on-screen HUD also self-checks the per-eye camera
-layer masks and prints PASS/FAIL.
+- **Safety systems** (always active): DOUBLE VISION / STOP on the B or Y
+  controller button (pauses, logs, lowers strong-eye contrast one step),
+  forced break every 10 min, hard session cap at 25 min, per-session
+  pre-check and start banner.
+- **Calibration + suppression check**: ring to the weak eye only, then a
+  fusion check (frame to one eye, cross to the other).
+- **Brick breaker**: paddle → strong eye (contrast-attenuated), ball and
+  bricks → weak eye (full contrast).
+- **Adaptive staircase** (PEDIG protocol values): strong-eye contrast starts
+  0.20, adjusts ±0.10 once per completed day (≥30 min play required;
+  success ratio ≥0.75 raises, below lowers; floor 0.10, ceiling 1.0).
+  Every adjustment is logged with its inputs.
+- All state in `localStorage`; JSON export/import buttons on the 2D page.
+- `?smoke` URL flag: the original per-eye rendering smoke test
+  (red cube = left eye, blue cube = right eye).
 
 ## Run locally (desktop, no headset)
 
