@@ -23,12 +23,36 @@ export async function start() {
   // 1. ?program-start=fresh — archive everything to the sync repo, then wipe
   //    local history and reset the staircase: official day zero.
   // 2. ?set-contrast=0.2 — manual contrast set (e.g. doctor's balance point).
+  //
+  // BOTH require a one-time token: &once=<any-unique-string>. Each token is
+  // consumed on first use, and a URL without one is IGNORED. Reason: the
+  // Quest browser resurfaces old URLs from history — a replayed
+  // ?set-contrast link once silently undid a legitimate double-vision
+  // back-off. Admin links must never be replayable.
   const qp = new URLSearchParams(location.search);
-  if (qp.get('program-start') === 'fresh') {
+  const CONSUMED_KEY = 'vt.admin.consumed.v1';
+  const onceToken = qp.get('once');
+  const consumed = JSON.parse(localStorage.getItem(CONSUMED_KEY) || '[]');
+  let adminActed = false;
+  const adminAllowed = (name) => {
+    if (qp.get(name) === null) return false;
+    if (!onceToken) {
+      console.warn(`[vt] ${name} ignored: no once= token (stale/replayed link?)`);
+      return false;
+    }
+    if (consumed.includes(onceToken)) {
+      console.warn(`[vt] ${name} ignored: once= token already used`);
+      return false;
+    }
+    return true;
+  };
+
+  if (adminAllowed('program-start') && qp.get('program-start') === 'fresh') {
     const arch = await archiveSnapshot('preprogram');
     if (getSyncConfig() && arch.state !== 'ok') {
       alert('Program start ABORTED: could not archive old data (' + (arch.error || arch.state) + '). Nothing was deleted.');
     } else {
+      adminActed = true;
       store.resetAll();
       staircase.reset();
       localStorage.setItem('vt.program.v1', JSON.stringify({ startDay: localDay() }));
@@ -74,12 +98,21 @@ export async function start() {
     },
   };
 
-  // Supervised one-time contrast set via URL (?set-contrast=0.2), for
-  // remote corrections. Logged in the staircase history like any change.
-  const scParam = parseFloat(new URLSearchParams(location.search).get('set-contrast'));
-  if (!Number.isNaN(scParam)) {
-    const to = staircase.setManual(scParam, 'manual-set-url');
-    console.log(`[vt] contrast manually set to ${to}`);
+  // Supervised one-time contrast set via URL (?set-contrast=0.2&once=...),
+  // for remote corrections. Logged in the staircase history like any change.
+  if (adminAllowed('set-contrast')) {
+    const scParam = parseFloat(qp.get('set-contrast'));
+    if (!Number.isNaN(scParam)) {
+      adminActed = true;
+      const to = staircase.setManual(scParam, 'manual-set-url');
+      console.log(`[vt] contrast manually set to ${to}`);
+    }
+  }
+  if (adminActed) {
+    consumed.push(onceToken);
+    localStorage.setItem(CONSUMED_KEY, JSON.stringify(consumed));
+    // strip params so a reload of this tab can't even attempt a replay
+    history.replaceState(null, '', location.pathname + (qp.has('emulator') ? '?emulator' : ''));
   }
 
   // Desktop 2D info
@@ -100,14 +133,35 @@ export async function start() {
   // catch anything a crashed/closed prior session didn't upload
   if (getSyncConfig()) syncNow('app-load').then(refreshHudEl);
 
+  // Prefer 90 Hz (spec targets 72-90): less sample-and-hold smear on fast
+  // weak-eye objects like the brick breaker ball.
+  let appliedFrameRate = null;
   renderer.xr.addEventListener('sessionstart', () => {
+    try {
+      const session = renderer.xr.getSession();
+      const rates = session.supportedFrameRates;
+      if (rates?.length && session.updateTargetFrameRate) {
+        const best = Math.max(...[...rates].filter((r) => r <= 91));
+        if (best > 0) {
+          session
+            .updateTargetFrameRate(best)
+            .then(() => {
+              appliedFrameRate = best;
+              console.log(`[vt] target frame rate ${best} Hz`);
+            })
+            .catch(() => {});
+        }
+      }
+    } catch {
+      /* frame-rate control unsupported — keep default */
+    }
     sessionFlow().catch((e) => {
       console.error('[vt] session flow error', e);
     });
   });
 
   async function sessionFlow() {
-    const played = { any: false, brick: false };
+    const played = { any: false, brick: false, vergence: false };
     endRequested = false;
     safety.paused = false;
     safety.abortActivity = false;
@@ -121,6 +175,7 @@ export async function start() {
     if (evalResult && evalResult.change !== 'none') {
       store.logEvent('staircase-daily', evalResult);
     }
+    if (appliedFrameRate) store.logEvent('display', { frameRate: appliedFrameRate });
 
     // start-of-session banner (spec-mandated wording)
     await ui.panel(
@@ -182,6 +237,7 @@ export async function start() {
       } else if (choice === 'vergence') {
         await vergence.run(ctx);
         played.any = true;
+        played.vergence = true;
       }
     }
     if (played.any) await endOfSessionCheckin(played);
@@ -193,8 +249,12 @@ export async function start() {
   // report backs the staircase off, same as the B/Y stop — unless a stop
   // already lowered it this session (no double punishment).
   async function endOfSessionCheckin(played) {
+    // The vergence exercise MAKES the target double on purpose — that must
+    // not be reported (or back the staircase off) as a symptom.
     const dv = await ui.panel(
-      'Quick check-in — recorded for your eye doctor.\nAny double vision during play, even briefly?',
+      played.vergence
+        ? 'Quick check-in — recorded for your eye doctor.\nNOT counting the vergence exercise (doubling there is the point), any double vision during play, even briefly?'
+        : 'Quick check-in — recorded for your eye doctor.\nAny double vision during play, even briefly?',
       [
         { id: 'none', label: 'None' },
         { id: 'brief', label: 'Briefly' },
