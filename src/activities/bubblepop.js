@@ -25,6 +25,10 @@ const BUBBLE_COLORS = [0x7fd4ff, 0xa8ffbf, 0xffd47f, 0xff9fd4];
 export async function run(ctx) {
   const { scene, ui, safety } = ctx;
   safety.setActivity('bubble-pop');
+  // record the game mechanics in the session log so any future tuning shows
+  // up as a discontinuity marker in the clinical record (PICK_RADIUS is
+  // FROZEN from program day zero — changing it redefines the 75% target)
+  store.logEvent('mechanics', { game: 'bubble-pop', pickRadius: 0.11 });
 
   const group = new THREE.Group();
   scene.add(group);
@@ -115,14 +119,35 @@ export async function run(ctx) {
     return best ? { bubble: best, t: bestT } : null;
   }
 
+  // THERAPY-CRITICAL: every aim cue that fires off a bubble's position must
+  // be WEAK-EYE-ONLY. A both-eyes cue (reticle, laser change) would let the
+  // strong eye find bubbles by sweeping, bypassing the weak eye entirely and
+  // feeding the staircase a fake signal.
   const reticles = ui.controllers.map(() => {
     const r = new THREE.Mesh(
       new THREE.SphereGeometry(0.016, 12, 12),
       new THREE.MeshBasicMaterial({ color: 0xffffff }),
     );
     r.visible = false;
-    group.add(r); // layer 0 — both eyes see the aim point
+    r.layers.set(weakLayer);
+    group.add(r);
     return r;
+  });
+
+  // weak-eye-only aiming ray that shortens to the target; the shared layer-0
+  // ui laser stays full length so the strong eye learns nothing
+  const weakRays = ui.controllers.map((c) => {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -3),
+    ]);
+    const line = new THREE.Line(
+      geo,
+      new THREE.LineBasicMaterial({ color: 0xaaddff, transparent: true, opacity: 0.6 }),
+    );
+    line.layers.set(weakLayer);
+    c.add(line);
+    return line;
   });
 
   function onSelect(e) {
@@ -184,22 +209,21 @@ export async function run(ctx) {
         }
       }
 
-      // hover feedback: highlight aimed bubble, park reticle at aim point,
-      // laser stops on the target
+      // hover feedback — all of it weak-eye-only: highlight the aimed
+      // bubble, park the reticle at the aim point, shorten the weak-eye ray
       for (const b of bubbles) b.scale.setScalar(1);
       ui.controllers.forEach((c, i) => {
         const hit = nearestOnRay(c);
-        const ray = c.getObjectByName('uiRay');
         if (hit) {
           hit.bubble.scale.setScalar(1.25);
           reticles[i].visible = true;
           reticles[i].position.copy(rayDir.set(0, 0, -1).applyMatrix4(tmpMat.identity().extractRotation(c.matrixWorld)))
             .multiplyScalar(hit.t)
             .add(rayOrigin.setFromMatrixPosition(c.matrixWorld));
-          if (ray) ray.scale.z = hit.t / 3;
+          weakRays[i].scale.z = hit.t / 3;
         } else {
           reticles[i].visible = false;
-          if (ray) ray.scale.z = 1;
+          weakRays[i].scale.z = 1;
         }
       });
 
@@ -214,11 +238,12 @@ export async function run(ctx) {
 
     function cleanup() {
       off();
-      for (const c of ui.controllers) {
+      ui.controllers.forEach((c, i) => {
         c.removeEventListener('selectstart', onSelect);
-        const ray = c.getObjectByName('uiRay');
-        if (ray) ray.scale.z = 1;
-      }
+        c.remove(weakRays[i]);
+        weakRays[i].geometry.dispose();
+        weakRays[i].material.dispose();
+      });
       ui.buttons = ui.buttons.filter((x) => x !== exitHud.mesh);
       exitHud.dispose();
       hud.dispose();

@@ -102,12 +102,11 @@ export async function run(ctx) {
 
   function endFlight(success) {
     store.addResult('ring-toss', success ? 1 : 0, 1, false); // per-game only
-    if (success) {
-      through++;
-      placeRing();
-    } else if (throws % 3 === 0) {
-      placeRing(); // keep depth varied even on misses
-    }
+    if (success) through++;
+    // relocate after EVERY throw: a rim bounce is both-eyes-visible physics,
+    // so any ring-position knowledge the strong eye gleans from it must
+    // expire before it can guide the next throw
+    placeRing();
     updateHud();
     state = 'idle';
     respawnTimer = 0.8;

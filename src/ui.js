@@ -77,7 +77,10 @@ export class UI {
         new THREE.Vector3(0, 0, -3),
       ]);
       const ray = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 }));
-      ray.name = 'uiRay'; // activities may shorten it to the aimed target
+      // NOTE: this ray is layer 0 (both eyes). NEVER shorten/alter it in
+      // response to weak-eye-only targets — that leaks their position to the
+      // strong eye. Use a weak-layer overlay ray instead (see bubblepop.js).
+      ray.name = 'uiRay';
       c.add(ray);
       const tip = new THREE.Mesh(
         new THREE.SphereGeometry(0.012, 12, 12),
