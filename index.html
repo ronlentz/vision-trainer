@@ -25,6 +25,7 @@
   <body>
     <div id="hud">Loading…</div>
     <div id="data">
+      <button id="syncBtn">Sync setup</button>
       <button id="exportBtn">Export data (JSON)</button>
       <label for="importFile">Import data</label>
       <input type="file" id="importFile" accept=".json,application/json" />
@@ -33,6 +34,27 @@
     <script type="module">
       // 2D-page data export/import (all state lives in localStorage)
       const { store } = await import('/src/store.js');
+      const { getSyncConfig, setSyncConfig, syncNow, syncStatus } = await import('/src/sync.js');
+      document.getElementById('syncBtn').onclick = async () => {
+        const cur = getSyncConfig();
+        const st = syncStatus();
+        const token = prompt(
+          `Auto-sync ${cur ? 'is ON (' + st.state + ')' : 'is OFF'}.\n` +
+            'Paste the sync token to enable/update, or leave empty and press OK to disable:',
+        );
+        if (token === null) return; // cancelled
+        if (token.trim() === '') {
+          setSyncConfig(null);
+          alert('Auto-sync disabled.');
+          location.reload();
+          return;
+        }
+        const device = prompt('Device label for this headset/computer:', cur?.device || 'quest') || 'quest';
+        setSyncConfig({ token: token.trim(), repo: 'ronlentz/vision-trainer-data', device });
+        const res = await syncNow('setup-test');
+        alert(res.state === 'ok' ? 'Sync works! Data uploaded.' : 'Sync FAILED: ' + (res.error || res.state));
+        location.reload();
+      };
       document.getElementById('exportBtn').onclick = () => {
         const blob = new Blob([store.exportJSON()], { type: 'application/json' });
         const a = document.createElement('a');

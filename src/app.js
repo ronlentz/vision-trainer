@@ -10,6 +10,7 @@ import { staircase } from './staircase.js';
 import { weakEyeName } from './eyes.js';
 import * as calibration from './activities/calibration.js';
 import * as brickbreaker from './activities/brickbreaker.js';
+import { syncNow, syncStatus, getSyncConfig } from './sync.js';
 
 const hudEl = document.getElementById('hud');
 
@@ -53,11 +54,22 @@ export function start() {
   };
 
   // Desktop 2D info
-  hudEl.textContent = [
-    'Vision Trainer',
-    `strong-eye contrast: ${staircase.contrast().toFixed(2)} · weak eye: ${weakEyeName}`,
-    'Put the headset on and click Enter VR. Add ?emulator for desktop testing.',
-  ].join('\n');
+  function refreshHudEl() {
+    const st = syncStatus();
+    const syncLine = getSyncConfig()
+      ? `auto-sync: ${st.state}${st.ts ? ' (' + new Date(st.ts).toLocaleString() + ')' : ''}`
+      : 'auto-sync: not set up (Sync setup button, top right)';
+    hudEl.textContent = [
+      'Vision Trainer',
+      `strong-eye contrast: ${staircase.contrast().toFixed(2)} · weak eye: ${weakEyeName}`,
+      'Put the headset on and click Enter VR. Add ?emulator for desktop testing.',
+      syncLine,
+    ].join('\n');
+  }
+  refreshHudEl();
+
+  // catch anything a crashed/closed prior session didn't upload
+  if (getSyncConfig()) syncNow('app-load').then(refreshHudEl);
 
   renderer.xr.addEventListener('sessionstart', () => {
     sessionFlow().catch((e) => {
@@ -196,17 +208,29 @@ export function start() {
   async function endSession() {
     store.tick(safety.activeMinutes());
     store.endSession(staircase.contrast());
+    syncNow('session-end').then(refreshHudEl);
     const session = renderer.xr.getSession();
     if (session) await session.end().catch(() => {});
   }
 
   const clock = new THREE.Clock();
+  let lastPeriodicSyncMs = 0;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
     if (renderer.xr.isPresenting) {
       safety.update(dt, renderer.xr.getSession());
       ui.update();
       for (const fn of frameFns) fn(dt);
+      // crash protection: snapshot to the private repo every 5 min of play
+      if (
+        getSyncConfig() &&
+        safety.activityName &&
+        safety.activeMs - lastPeriodicSyncMs >= 5 * 60_000
+      ) {
+        lastPeriodicSyncMs = safety.activeMs;
+        store.tick(safety.activeMinutes());
+        syncNow('periodic');
+      }
     }
     renderer.render(scene, camera);
   });
