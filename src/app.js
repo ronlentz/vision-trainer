@@ -10,6 +10,7 @@ import { staircase } from './staircase.js';
 import { weakEyeName } from './eyes.js';
 import * as calibration from './activities/calibration.js';
 import * as brickbreaker from './activities/brickbreaker.js';
+import * as bubblepop from './activities/bubblepop.js';
 import { syncNow, syncStatus, getSyncConfig } from './sync.js';
 
 const hudEl = document.getElementById('hud');
@@ -137,6 +138,7 @@ export function start() {
         `Choose an activity.\nStrong-eye contrast: ${staircase.contrast().toFixed(2)} · played ${Math.round(safety.activeMinutes())} min\nB or Y button = DOUBLE VISION / STOP (always active)`,
         [
           { id: 'calibration', label: 'Calibration check' },
+          { id: 'bubble', label: 'Bubble pop' },
           { id: 'brick', label: 'Brick breaker' },
           { id: 'end', label: 'End session', color: '#b03030' },
         ],
@@ -144,6 +146,9 @@ export function start() {
       if (choice === 'end' || endRequested) break;
       if (choice === 'calibration') {
         await calibration.run(ctx);
+        played.any = true;
+      } else if (choice === 'bubble') {
+        await bubblepop.run(ctx);
         played.any = true;
       } else if (choice === 'brick') {
         await brickbreaker.run(ctx);

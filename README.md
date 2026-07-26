@@ -10,8 +10,11 @@ Current features:
   pre-check and start banner.
 - **Calibration + suppression check**: ring to the weak eye only, then a
   fusion check (frame to one eye, cross to the other).
-- **Brick breaker**: paddle → strong eye (contrast-attenuated), ball and
-  bricks → weak eye (full contrast).
+- **Bubble pop** (main staircase driver): bubbles → weak eye (full
+  contrast), drifting distractor field → strong eye (attenuated);
+  point-and-trigger to pop; accuracy = popped / (popped + escaped).
+- **Brick breaker**: paddles (one per hand) → strong eye
+  (contrast-attenuated), ball and bricks → weak eye (full contrast).
 - **Adaptive staircase** (PEDIG protocol values): strong-eye contrast starts
   0.20, adjusts ±0.10 once per completed day (≥30 min play required;
   success ratio ≥0.75 raises, below lowers; floor 0.10, ceiling 1.0).
