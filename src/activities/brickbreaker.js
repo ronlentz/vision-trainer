@@ -39,15 +39,19 @@ export async function run(ctx) {
   arena.position.set(0, (Y_LO + Y_HI) / 2, (Z_WALL + Z_MISS) / 2);
   group.add(arena);
 
-  // paddle — strong eye, contrast-attenuated
-  const paddle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.24, 0.14, 0.02),
-    new THREE.MeshBasicMaterial({ color: 0xffffff }),
-  );
-  paddle.position.set(0, 1.5, Z_PADDLE);
-  paddle.layers.set(strongLayer);
-  setContrast(paddle, staircase.contrast());
-  group.add(paddle);
+  // paddles — one per controller, strong eye, contrast-attenuated
+  const paddles = [0, 1].map(() => {
+    const p = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.14, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    );
+    p.position.set(0, 1.5, Z_PADDLE);
+    p.visible = false; // shown once its controller reports a pose
+    p.layers.set(strongLayer);
+    setContrast(p, staircase.contrast());
+    group.add(p);
+    return p;
+  });
 
   // ball — weak eye, full contrast
   const ball = new THREE.Mesh(
@@ -72,9 +76,11 @@ export async function run(ctx) {
           new THREE.BoxGeometry(BW, BH, 0.05),
           new THREE.MeshBasicMaterial({ color: BRICK_COLORS[r % BRICK_COLORS.length] }),
         );
+        // rows at y = 1.45..1.72 — fully inside the arena (1.15..1.85) and
+        // within the ball's reach (ball center caps at Y_HI - BALL_R = 1.815)
         brick.position.set(
           (cIdx - (cols - 1) / 2) * (BW + 0.015),
-          Y_LO + 0.12 + r * (BH + 0.015) + 0.35,
+          1.45 + r * (BH + 0.015),
           Z_BRICKS,
         );
         brick.layers.set(weakLayer);
@@ -131,14 +137,17 @@ export async function run(ctx) {
       }
       if (safety.paused || ui.busy) return;
 
-      // paddle follows controller (first controller with a position)
-      const c = ui.controllers[0];
-      const p = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
-      if (p.lengthSq() > 0.0001) {
-        paddle.position.x = THREE.MathUtils.clamp(p.x * 1.6, -X + 0.12, X - 0.12);
-        paddle.position.y = THREE.MathUtils.clamp(1.5 + (p.y - 1.3) * 1.6, Y_LO + 0.07, Y_HI - 0.07);
-      }
-      setContrast(paddle, staircase.contrast());
+      // each paddle follows its own controller
+      const cpos = new THREE.Vector3();
+      paddles.forEach((paddle, i) => {
+        cpos.setFromMatrixPosition(ui.controllers[i].matrixWorld);
+        if (cpos.lengthSq() > 0.0001) {
+          paddle.visible = true;
+          paddle.position.x = THREE.MathUtils.clamp(cpos.x * 1.6, -X + 0.12, X - 0.12);
+          paddle.position.y = THREE.MathUtils.clamp(1.5 + (cpos.y - 1.3) * 1.6, Y_LO + 0.07, Y_HI - 0.07);
+        }
+        setContrast(paddle, staircase.contrast());
+      });
 
       if (serving > 0) {
         serving -= dt;
@@ -176,18 +185,22 @@ export async function run(ctx) {
         }
       }
 
-      // paddle
+      // paddles — either hand can return the ball
       if (vel.z > 0 && b.z > Z_PADDLE - BALL_R && b.z < Z_PADDLE + 0.06) {
-        const dx = b.x - paddle.position.x;
-        const dy = b.y - paddle.position.y;
-        if (Math.abs(dx) < 0.12 + BALL_R && Math.abs(dy) < 0.07 + BALL_R) {
-          vel.z = -Math.abs(vel.z);
-          vel.x += dx * 2.2;
-          vel.y += dy * 2.2;
-          vel.normalize().multiplyScalar(SPEED);
-          hits++;
-          store.addResult(1, 1);
-          updateHud();
+        for (const paddle of paddles) {
+          if (!paddle.visible) continue;
+          const dx = b.x - paddle.position.x;
+          const dy = b.y - paddle.position.y;
+          if (Math.abs(dx) < 0.12 + BALL_R && Math.abs(dy) < 0.07 + BALL_R) {
+            vel.z = -Math.abs(vel.z);
+            vel.x += dx * 2.2;
+            vel.y += dy * 2.2;
+            vel.normalize().multiplyScalar(SPEED);
+            hits++;
+            store.addResult(1, 1);
+            updateHud();
+            break;
+          }
         }
       }
 
